@@ -21,6 +21,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#define HANG_ON_START
+
 #ifdef _MSC_VER
 
 #include <fcntl.h>  // _O_BINARY
@@ -152,12 +154,13 @@ public:
 int main()
 {
    // ==== Debug code ===
-
+#ifdef HANG_ON_START
    int n = 0;
    while (true)
    {
       n++;
    }
+#endif
    // =================
 
 #ifdef _MSC_VER
