@@ -148,9 +148,12 @@
     <ClCompile Include="..\dap\stream.cpp" />
     <ClCompile Include="..\dap\typeinfo.cpp" />
     <ClCompile Include="..\dap\typeof.cpp" />
+    <ClCompile Include="..\elena\debugcontroller.cpp" />
     <ClCompile Include="..\windows\elena-dap.cpp" />
+    <ClCompile Include="..\windows\win32debugprocess.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\common.h" />
     <ClInclude Include="..\dap\any.h" />
     <ClInclude Include="..\dap\chan.h" />
     <ClInclude Include="..\dap\content_stream.h" />
@@ -168,6 +171,8 @@
     <ClInclude Include="..\dap\typeof.h" />
     <ClInclude Include="..\dap\types.h" />
     <ClInclude Include="..\dap\variant.h" />
+    <ClInclude Include="..\elena\debugcontroller.h" />
+    <ClInclude Include="..\windows\win32debugprocess.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

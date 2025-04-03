@@ -21,7 +21,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//#define HANG_ON_START
+#define HANG_ON_START
 
 #ifdef _MSC_VER
 
@@ -31,6 +31,7 @@
 #endif              
 
 #include <stdio.h>
+#include <iostream>
 
 #include <mutex>
 #include <unordered_set>
@@ -38,6 +39,9 @@
 #include "dap/session.h"
 #include "dap/stream.h"
 #include "dap/protocol.h"
+#include "elena/debugcontroller.h"
+#include "windows/win32debugprocess.h"
+#include "common.h"
 
 // sourceContent holds the synthetic file source.
 constexpr char sourceContent[] = R"(// Hello Debugger!
@@ -151,8 +155,16 @@ public:
    }
 };
 
-int main()
+int main(int argn, char* argv[])
 {
+   std::cout << "ELENA Debugger Adapter v.1." << ELENA_DAP_REVISION << std::endl;
+
+   if (argn < 2)
+      return -1;
+
+   std::string source;
+   source.assign(argv[1]);
+
    // ==== Debug code ===
 #ifdef HANG_ON_START
    int n = 0;
@@ -190,32 +202,34 @@ int main()
    // Event handlers from the Debugger.
    auto onDebuggerEvent = [&](Debugger::Event onEvent) {
       switch (onEvent) {
-      case Debugger::Event::Stepped: {
-         // The debugger has single-line stepped. Inform the client.
-         dap::StoppedEvent event;
-         event.reason = "step";
-         event.threadId = threadId;
-         session->send(event);
-         break;
-      }
-      case Debugger::Event::BreakpointHit: {
-         // The debugger has hit a breakpoint. Inform the client.
-         dap::StoppedEvent event;
-         event.reason = "breakpoint";
-         event.threadId = threadId;
-         session->send(event);
-         break;
-      }
-      case Debugger::Event::Paused: {
-         // The debugger has been suspended. Inform the client.
-         dap::StoppedEvent event;
-         event.reason = "pause";
-         event.threadId = threadId;
-         session->send(event);
-         break;
-      }
-      }
-      };
+         case Debugger::Event::Stepped: {
+            // The debugger has single-line stepped. Inform the client.
+            dap::StoppedEvent event;
+            event.reason = "step";
+            event.threadId = threadId;
+            session->send(event);
+            break;
+         }
+         case Debugger::Event::BreakpointHit: {
+            // The debugger has hit a breakpoint. Inform the client.
+            dap::StoppedEvent event;
+            event.reason = "breakpoint";
+            event.threadId = threadId;
+            session->send(event);
+            break;
+         }
+         case Debugger::Event::Paused: {
+            // The debugger has been suspended. Inform the client.
+            dap::StoppedEvent event;
+            event.reason = "pause";
+            event.threadId = threadId;
+            session->send(event);
+            break;
+         }
+      }};
+
+   // Debug Controller
+   elena_lang::DebugController debugController(new elena_lang::Win32DebugProcess(), source);
 
    // Construct the debugger.
    Debugger debugger(onDebuggerEvent);
@@ -233,7 +247,7 @@ int main()
    // The Initialize request is the first message sent from the client and
    // the response reports debugger capabilities.
    // https://microsoft.github.io/debug-adapter-protocol/specification#Requests_Initialize
-   session->registerHandler([](const dap::InitializeRequest&) {
+   session->registerHandler([](const dap::InitializeRequest& request) {
       dap::InitializeResponse response;
       response.supportsConfigurationDoneRequest = true;
       return response;
@@ -245,17 +259,7 @@ int main()
    // initialize response.
    // https://microsoft.github.io/debug-adapter-protocol/specification#Events_Initialized
    session->registerSentHandler(
-      [&](const dap::ResponseOrError<dap::InitializeResponse>&) {
-         session->send(dap::InitializedEvent());
-      });
-
-   // When the Initialize response has been sent, we need to send the initialized
-   // event.
-   // We use the registerSentHandler() to ensure the event is sent *after* the
-   // initialize response.
-   // https://microsoft.github.io/debug-adapter-protocol/specification#Events_Initialized
-   session->registerSentHandler(
-      [&](const dap::ResponseOrError<dap::InitializeResponse>&) {
+      [&](const dap::ResponseOrError<dap::InitializeResponse>& request) {
          session->send(dap::InitializedEvent());
       });
 
@@ -430,7 +434,12 @@ int main()
    // This example debugger does nothing with this request.
    // https://microsoft.github.io/debug-adapter-protocol/specification#Requests_Launch
    session->registerHandler(
-      [&](const dap::LaunchRequest&) { return dap::LaunchResponse(); });
+      [&](const dap::LaunchRequest& request) 
+      { 
+         debugController.launch(request.noDebug.value(false));
+
+         return dap::LaunchResponse(); 
+      });
 
    // Handler for disconnect requests
    session->registerHandler([&](const dap::DisconnectRequest& request) {
@@ -444,7 +453,7 @@ int main()
    // requests have been made.
    // This example debugger uses this request to 'start' the debugger.
    // https://microsoft.github.io/debug-adapter-protocol/specification#Requests_ConfigurationDone
-   session->registerHandler([&](const dap::ConfigurationDoneRequest&) {
+   session->registerHandler([&](const dap::ConfigurationDoneRequest& request) {
       configured.fire();
       return dap::ConfigurationDoneResponse();
       });
