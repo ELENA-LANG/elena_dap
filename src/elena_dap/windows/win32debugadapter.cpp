@@ -9,7 +9,7 @@
 
 #include <string>
 
-#include "windows/win32debugprocess.h"
+#include "windows/win32debugadapter.h"
 
 using namespace elena_lang;
 

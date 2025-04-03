@@ -40,7 +40,7 @@
 #include "dap/stream.h"
 #include "dap/protocol.h"
 #include "elena/debugcontroller.h"
-#include "windows/win32debugprocess.h"
+#include "windows/win32debugadapter.h"
 #include "common.h"
 
 // sourceContent holds the synthetic file source.
@@ -229,7 +229,7 @@ int main(int argn, char* argv[])
       }};
 
    // Debug Controller
-   elena_lang::DebugController debugController(new elena_lang::Win32DebugProcess(), source);
+   elena_lang::DebugController debugController(new elena_lang::Win32DebugAdapter(), source);
 
    // Construct the debugger.
    Debugger debugger(onDebuggerEvent);

@@ -82,11 +82,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..;..\..\..\..\elena-lang\elenasrc3\ldebugger</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>..\..\..\..\elena-lang\bin\</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);ldebugger.lib </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -150,7 +152,7 @@
     <ClCompile Include="..\dap\typeof.cpp" />
     <ClCompile Include="..\elena\debugcontroller.cpp" />
     <ClCompile Include="..\windows\elena-dap.cpp" />
-    <ClCompile Include="..\windows\win32debugprocess.cpp" />
+    <ClCompile Include="..\windows\win32debugadapter.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\common.h" />
@@ -172,7 +174,7 @@
     <ClInclude Include="..\dap\types.h" />
     <ClInclude Include="..\dap\variant.h" />
     <ClInclude Include="..\elena\debugcontroller.h" />
-    <ClInclude Include="..\windows\win32debugprocess.h" />
+    <ClInclude Include="..\windows\win32debugadapter.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

@@ -7,15 +7,19 @@
 //                                             (C)2025, by Aleksey Rakov
 //---------------------------------------------------------------------------
 
-#ifndef ELENA_WIN_DEBUG_CONTROLLER
-#define ELENA_WIN_DEBUG_CONTROLLER
+#ifndef ELENA_WIN_DEBUG_ADAPTER_H
+#define ELENA_WIN_DEBUG_ADAPTER_H
 
 #include "elena/debugcontroller.h"
+
+#include "windows/win32debugprocess.h"
 
 namespace elena_lang
 {
    class Win32DebugAdapter : public DebugProcessBase
    {
+      Win32DebugProcess _process;
+
    public:
       bool startProcess(std::string target) override;
 
@@ -24,4 +28,4 @@ namespace elena_lang
    };
 }
 
-#endif // ELENA_WIN_DEBUG_CONTROLLER
+#endif // ELENA_WIN_DEBUG_ADAPTER_H
