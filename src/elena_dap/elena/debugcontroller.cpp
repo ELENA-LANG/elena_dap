@@ -17,14 +17,93 @@ using namespace elena_lang;
 
 void DebugController :: defineTargetFile(std::string source)
 {
-   size_t extIndex = source.find_last_of('.');
-   if (extIndex != std::string::npos) {
-      _target = source.substr(0, extIndex);
-      _target.append(".exe");
-   }   
+   _debuggee.copy(source.c_str());
+   _debuggee.changeExtension("exe");
+}
+
+void DebugController :: runDebugEvent()
+{
+   switch (_process->proceed(100)) {
+      case DebugProcessBase::ProceedMode::Trapped:
+         _debugActive.reset();
+
+         //processStep();
+         break;
+      case DebugProcessBase::ProceedMode::NewThread:
+         newThread();
+         _process->run();
+         break;
+      default:
+         _process->run();
+         break;
+   }
 }
 
 bool DebugController :: launch(bool noDebug)
 {
-   return _process->startProcess(_target);
+   _debugThread = std::thread([this] {
+      if (!_process->startProcess(*_debuggee, *_arguments))
+         return;
+
+      _running = true;
+      while (_running) {
+         _debugActive.wait();
+
+         runDebugEvent();
+      }
+      });
+
+   return true;
+}
+
+void DebugController :: run()
+{
+   std::unique_lock<std::mutex> lock(_mutex);
+   //for (int64_t i = 0; i < numSourceLines; i++) {
+   //   int64_t l = ((_line + i) % numSourceLines) + 1;
+   //   if (_breakpoints.count(l)) {
+   //      _line = l;
+   //      lock.unlock();
+   //      _onEvent(EventType::BreakpointHit);
+   //      return;
+   //   }
+   //}
+
+   _debugActive.fire();
+}
+
+void DebugController :: newThread()
+{
+   _onEvent(EventType::NewThread);
+}
+
+void DebugController :: pause() 
+{
+   _onEvent(EventType::Paused);
+}
+
+int64_t DebugController::currentLine()
+{
+   std::unique_lock<std::mutex> lock(_mutex);
+   return _line;
+}
+
+void DebugController::stepForward() 
+{
+   std::unique_lock<std::mutex> lock(_mutex);
+   _line = (_line % numSourceLines) + 1;
+   lock.unlock();
+   _onEvent(EventType::Stepped);
+}
+
+void DebugController::clearBreakpoints() 
+{
+   std::unique_lock<std::mutex> lock(_mutex);
+   this->_breakpoints.clear();
+}
+
+void DebugController::addBreakpoint(int64_t l)
+{
+   std::unique_lock<std::mutex> lock(_mutex);
+   this->_breakpoints.emplace(l);
 }

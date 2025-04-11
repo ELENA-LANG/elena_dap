@@ -21,7 +21,11 @@ namespace elena_lang
       Win32DebugProcess _process;
 
    public:
-      bool startProcess(std::string target) override;
+      bool startProcess(path_t debugee, path_t arguments) override;
+
+      ProceedMode proceed(int timeout) override;
+
+      void run() override;
 
       Win32DebugAdapter();
       virtual ~Win32DebugAdapter() = default;

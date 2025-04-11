@@ -21,7 +21,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#define HANG_ON_START
+//#define HANG_ON_START
 
 #ifdef _MSC_VER
 
@@ -33,9 +33,6 @@
 #include <stdio.h>
 #include <iostream>
 
-#include <mutex>
-#include <unordered_set>
-
 #include "dap/session.h"
 #include "dap/stream.h"
 #include "dap/protocol.h"
@@ -43,117 +40,7 @@
 #include "windows/win32debugadapter.h"
 #include "common.h"
 
-// sourceContent holds the synthetic file source.
-constexpr char sourceContent[] = R"(// Hello Debugger!
-
-This is a synthetic source file provided by the DAP debugger.
-
-You can set breakpoints, and single line step.
-
-You may also notice that the locals contains a single variable for the currently executing line number.)";
-
-
-// Total number of newlines in source.
-constexpr int64_t numSourceLines = 7;
-
-// Debugger holds the dummy debugger state and fires events to the EventHandler
-// passed to the constructor.
-class Debugger {
-public:
-   enum class Event { BreakpointHit, Stepped, Paused };
-   using EventHandler = std::function<void(Event)>;
-
-   Debugger(const EventHandler&);
-
-   // run() instructs the debugger to continue execution.
-   void run();
-
-   // pause() instructs the debugger to pause execution.
-   void pause();
-
-   // currentLine() returns the currently executing line number.
-   int64_t currentLine();
-
-   // stepForward() instructs the debugger to step forward one line.
-   void stepForward();
-
-   // clearBreakpoints() clears all set breakpoints.
-   void clearBreakpoints();
-
-   // addBreakpoint() sets a new breakpoint on the given line.
-   void addBreakpoint(int64_t line);
-
-private:
-   EventHandler onEvent;
-   std::mutex mutex;
-   int64_t line = 1;
-   std::unordered_set<int64_t> breakpoints;
-};
-
-Debugger::Debugger(const EventHandler& onEvent) : onEvent(onEvent) {}
-
-void Debugger::run() {
-   std::unique_lock<std::mutex> lock(mutex);
-   for (int64_t i = 0; i < numSourceLines; i++) {
-      int64_t l = ((line + i) % numSourceLines) + 1;
-      if (breakpoints.count(l)) {
-         line = l;
-         lock.unlock();
-         onEvent(Event::BreakpointHit);
-         return;
-      }
-   }
-}
-
-void Debugger::pause() {
-   onEvent(Event::Paused);
-}
-
-int64_t Debugger::currentLine() {
-   std::unique_lock<std::mutex> lock(mutex);
-   return line;
-}
-
-void Debugger::stepForward() {
-   std::unique_lock<std::mutex> lock(mutex);
-   line = (line % numSourceLines) + 1;
-   lock.unlock();
-   onEvent(Event::Stepped);
-}
-
-void Debugger::clearBreakpoints() {
-   std::unique_lock<std::mutex> lock(mutex);
-   this->breakpoints.clear();
-}
-
-void Debugger::addBreakpoint(int64_t l) {
-   std::unique_lock<std::mutex> lock(mutex);
-   this->breakpoints.emplace(l);
-}
-
-// Event provides a basic wait and signal synchronization primitive.
-class Event
-{
-   std::mutex              mutex;
-   std::condition_variable cv;
-   bool                    fired = false;
-
-public:
-   // wait() blocks until the event is fired.
-   void wait()
-   {
-      std::unique_lock<std::mutex> lock(mutex);
-      cv.wait(lock, [&] { return fired; });
-   }
-
-   // fire() sets signals the event, and unblocks any calls to wait().
-   void fire()
-   {
-      std::unique_lock<std::mutex> lock(mutex);
-      fired = true;
-      cv.notify_all();
-   }
-};
+using namespace elena_lang;
 
 int main(int argn, char* argv[])
 {
@@ -163,7 +50,8 @@ int main(int argn, char* argv[])
       return -1;
 
    std::string source;
-   source.assign(argv[1]);
+   //source.assign(argv[1]);
+   source.assign("C:\\Alex\\elena-lang\\tests60\\sandbox\\sandbox.l");
 
    // ==== Debug code ===
 #ifdef HANG_ON_START
@@ -200,9 +88,18 @@ int main(int argn, char* argv[])
    Event configured;
 
    // Event handlers from the Debugger.
-   auto onDebuggerEvent = [&](Debugger::Event onEvent) {
+   auto onDebuggerEvent = [&](DebugController::EventType onEvent) {
       switch (onEvent) {
-         case Debugger::Event::Stepped: {
+         case DebugController::EventType::NewThread: {
+            // Broadcast the existance of the single thread to the client.
+            dap::ThreadEvent threadStartedEvent;
+            threadStartedEvent.reason = "started";
+            threadStartedEvent.threadId = threadId;
+            session->send(threadStartedEvent);
+
+            break;
+         }
+         case DebugController::EventType::Stepped: {
             // The debugger has single-line stepped. Inform the client.
             dap::StoppedEvent event;
             event.reason = "step";
@@ -210,7 +107,7 @@ int main(int argn, char* argv[])
             session->send(event);
             break;
          }
-         case Debugger::Event::BreakpointHit: {
+         case DebugController::EventType::BreakpointHit: {
             // The debugger has hit a breakpoint. Inform the client.
             dap::StoppedEvent event;
             event.reason = "breakpoint";
@@ -218,7 +115,7 @@ int main(int argn, char* argv[])
             session->send(event);
             break;
          }
-         case Debugger::Event::Paused: {
+         case DebugController::EventType::Paused: {
             // The debugger has been suspended. Inform the client.
             dap::StoppedEvent event;
             event.reason = "pause";
@@ -228,11 +125,9 @@ int main(int argn, char* argv[])
          }
       }};
 
-   // Debug Controller
-   elena_lang::DebugController debugController(new elena_lang::Win32DebugAdapter(), source);
-
    // Construct the debugger.
-   Debugger debugger(onDebuggerEvent);
+   elena_lang::DebugController debugger(new elena_lang::Win32DebugAdapter(), source, onDebuggerEvent);
+   //Debugger debugger(onDebuggerEvent);
 
    // Handle errors reported by the Session. These errors include protocol
    // parsing errors and receiving messages with no handler.
@@ -436,7 +331,7 @@ int main(int argn, char* argv[])
    session->registerHandler(
       [&](const dap::LaunchRequest& request) 
       { 
-         debugController.launch(request.noDebug.value(false));
+         debugger.launch(request.noDebug.value(false));
 
          return dap::LaunchResponse(); 
       });
@@ -474,15 +369,7 @@ int main(int argn, char* argv[])
    // Wait for the ConfigurationDone request to be made.
    configured.wait();
 
-   // Broadcast the existance of the single thread to the client.
-   dap::ThreadEvent threadStartedEvent;
-   threadStartedEvent.reason = "started";
-   threadStartedEvent.threadId = threadId;
-   session->send(threadStartedEvent);
-
-   // Start the debugger in a paused state.
-   // This sends a stopped event to the client.
-   debugger.pause();
+   debugger.run();
 
    // Block until we receive a 'terminateDebuggee' request or encounter a session
    // error.
