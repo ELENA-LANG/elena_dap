@@ -15,6 +15,12 @@ using namespace elena_lang;
 
 // --- Win32DebugAdapter ---
 
+Win32DebugAdapter::Win32DebugAdapter()
+   : _process("Please press any key")
+{
+
+}
+
 bool Win32DebugAdapter :: startProcess(std::string target)
 {
 

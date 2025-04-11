@@ -12,7 +12,7 @@
 
 #include "elena/debugcontroller.h"
 
-#include "windows/win32debugprocess.h"
+#include "ldebugger/windows/win32debugprocess.h"
 
 namespace elena_lang
 {
@@ -23,7 +23,7 @@ namespace elena_lang
    public:
       bool startProcess(std::string target) override;
 
-      Win32DebugAdapter() = default;
+      Win32DebugAdapter();
       virtual ~Win32DebugAdapter() = default;
    };
 }

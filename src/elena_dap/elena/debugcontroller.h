@@ -36,6 +36,7 @@ namespace elena_lang
       {
          defineTargetFile(source);
       }
+      virtual ~DebugController() = default;
    };
 }
 
