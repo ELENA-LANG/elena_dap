@@ -16,9 +16,13 @@
 
 namespace elena_lang
 {
-   class Win32DebugAdapter : public DebugProcessBase
+   class Win32DebugAdapter : public DAPDebugProcessBase
    {
       Win32DebugProcess _process;
+
+      bool readDump(addr_t address, char* s, pos_t length) override;
+
+      void addStep(addr_t address, void* current) override;
 
    public:
       bool startProcess(path_t debugee, path_t arguments) override;
@@ -26,6 +30,8 @@ namespace elena_lang
       ProceedMode proceed(int timeout) override;
 
       void run() override;
+
+      void setBreakpoint(addr_t address, bool withStackLevelControl) override;
 
       Win32DebugAdapter();
       virtual ~Win32DebugAdapter() = default;

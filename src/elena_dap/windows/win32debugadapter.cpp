@@ -25,7 +25,7 @@ bool Win32DebugAdapter :: startProcess(path_t debuggee, path_t arguments)
    return _process.startProcess(debuggee.str(), arguments.str(), nullptr, false, false);
 }
 
-DebugProcessBase::ProceedMode Win32DebugAdapter :: proceed(int timeout)
+DAPDebugProcessBase::ProceedMode Win32DebugAdapter :: proceed(int timeout)
 {
    _process.processEvent(timeout);
    if (_process.isNewThread())
@@ -37,4 +37,19 @@ DebugProcessBase::ProceedMode Win32DebugAdapter :: proceed(int timeout)
 void Win32DebugAdapter :: run()
 {
    _process.continueProcess();
+}
+
+bool Win32DebugAdapter :: readDump(addr_t address, char* s, pos_t length)
+{
+   return _process.readDump(address, s, length);
+}
+
+void Win32DebugAdapter :: addStep(addr_t address, void* state)
+{
+   _process.addStep(address, state);
+}
+
+void Win32DebugAdapter::setBreakpoint(addr_t address, bool withStackLevelControl)
+{
+   _process.setBreakpoint(address, withStackLevelControl);
 }

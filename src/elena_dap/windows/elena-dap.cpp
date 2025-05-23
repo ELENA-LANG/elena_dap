@@ -36,6 +36,7 @@
 #include "dap/session.h"
 #include "dap/stream.h"
 #include "dap/protocol.h"
+
 #include "elena/debugcontroller.h"
 #include "windows/win32debugadapter.h"
 #include "common.h"
@@ -51,6 +52,8 @@ int main(int argn, char* argv[])
 
    std::string source;
    //source.assign(argv[1]);
+
+   // !! temporal
    source.assign("C:\\Alex\\elena-lang\\tests60\\sandbox\\sandbox.l");
 
    // ==== Debug code ===
@@ -128,6 +131,7 @@ int main(int argn, char* argv[])
    // Construct the debugger.
    elena_lang::DebugController debugger(new elena_lang::Win32DebugAdapter(), source, onDebuggerEvent);
    //Debugger debugger(onDebuggerEvent);
+   debugger.loadDebugInfo();
 
    // Handle errors reported by the Session. These errors include protocol
    // parsing errors and receiving messages with no handler.

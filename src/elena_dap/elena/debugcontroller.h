@@ -15,6 +15,8 @@
 #include <unordered_set>
 
 #include "common\common.h"
+#include "ldebugger\ldbg_common.h"
+#include "ldebugger\debuginfoprovider.h"
 
 namespace elena_lang
 {
@@ -31,7 +33,13 @@ You can set breakpoints, and single line step.
 
 You may also notice that the locals contains a single variable for the currently executing line number.)";
 
-   class DebugProcessBase
+   class DebugInfoProvider : public DebugInfoProviderBase
+   {
+   private:
+      void retrievePath(ustr_t name, PathString& path, path_t extension) override;
+   };
+
+   class DAPDebugProcessBase : public DebugProcessBase
    {
    public:
       enum class ProceedMode
@@ -46,8 +54,6 @@ You may also notice that the locals contains a single variable for the currently
       virtual void run() = 0;
 
       virtual ProceedMode proceed(int timeout) = 0;
-
-      virtual ~DebugProcessBase() = default;
    };
 
    // Event provides a basic wait and signal synchronization primitive.
@@ -88,22 +94,26 @@ You may also notice that the locals contains a single variable for the currently
       using EventHandler = std::function<void(EventType)>;
 
    private:
-      PathString        _debuggee;
-      PathString        _arguments;
+      PathString           _debuggee;
+      PathString           _arguments;
 
-      DebugProcessBase* _process;
+      DAPDebugProcessBase* _process;
 
-      EventHandler      _onEvent;
+      DebugInfoProvider    _provider;
 
-      Event             _debugActive;
-      std::thread       _debugThread;
-      std::mutex        _mutex;
+      EventHandler         _onEvent;
 
-      bool              _running = false;
+      Event                _debugActive;
+      std::thread          _debugThread;
+      std::mutex           _mutex;
+
+      bool                 _running = false;
 
       // !! temporal
       int64_t           _line = 1;
       std::unordered_set<int64_t> _breakpoints;
+
+      void onLaunch();
 
       void defineTargetFile(std::string source);
 
@@ -112,6 +122,8 @@ You may also notice that the locals contains a single variable for the currently
       void newThread();
 
    public:
+      void loadDebugInfo();
+
       bool launch(bool noDebug);
 
       // run() instructs the debugger to continue execution.
@@ -132,7 +144,7 @@ You may also notice that the locals contains a single variable for the currently
       // addBreakpoint() sets a new breakpoint on the given line.
       void addBreakpoint(int64_t line);
 
-      DebugController(DebugProcessBase* process, std::string source, const EventHandler& onEvent)
+      DebugController(DAPDebugProcessBase* process, std::string source, const EventHandler& onEvent)
          : _process(process), _onEvent(onEvent)
       {
          defineTargetFile(source);

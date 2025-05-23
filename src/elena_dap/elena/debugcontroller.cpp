@@ -10,10 +10,49 @@
 #include <string>
 
 #include "elena/debugcontroller.h"
+#include "ldebugger/debuginfoprovider.h"
 
 using namespace elena_lang;
 
+// --- DebugInfoProvider ---
+
+void DebugInfoProvider::retrievePath(ustr_t name, PathString& path, path_t extension)
+{
+   //ustr_t package = _model->getPackage();
+
+   //// if it is the project package
+   //if (isEqualOrSubSetNs(package, name)) {
+   //   defineModulePath(name, path, *_model->projectPath, _model->getOutputPath(), extension);
+   //}
+   //else {
+   //   // check external libraries
+   //   for (auto ref_it = _model->referencePaths.start(); !ref_it.eof(); ++ref_it) {
+   //      ustr_t extPackage = ref_it.key();
+   //      if (isEqualOrSubSetNs(extPackage, name)) {
+   //         path.copy(*_model->projectPath);
+   //         path.combine(*ref_it);
+
+   //         ReferenceName::nameToPath(path, name);
+   //         path.appendExtension(extension);
+
+   //         return;
+   //      }
+   //   }
+
+   //   // if file doesn't exist use package root
+   //   path.copy(*_model->paths.libraryRoot);
+
+   //   ReferenceName::nameToPath(path, name);
+   //   path.appendExtension(extension);
+   //}
+}
+
 // --- DebugController ---
+
+void DebugController :: loadDebugInfo()
+{
+   DebugInfoProviderBase::loadDebugInfo(*_debuggee, &_provider, _process);
+}
 
 void DebugController :: defineTargetFile(std::string source)
 {
@@ -24,12 +63,12 @@ void DebugController :: defineTargetFile(std::string source)
 void DebugController :: runDebugEvent()
 {
    switch (_process->proceed(100)) {
-      case DebugProcessBase::ProceedMode::Trapped:
+      case DAPDebugProcessBase::ProceedMode::Trapped:
          _debugActive.reset();
 
          //processStep();
          break;
-      case DebugProcessBase::ProceedMode::NewThread:
+      case DAPDebugProcessBase::ProceedMode::NewThread:
          newThread();
          _process->run();
          break;
@@ -39,6 +78,12 @@ void DebugController :: runDebugEvent()
    }
 }
 
+void DebugController :: onLaunch()
+{
+   addr_t entryAddr = _provider.getEntryPoint();
+   _process->setBreakpoint(entryAddr, false);
+}
+
 bool DebugController :: launch(bool noDebug)
 {
    _debugThread = std::thread([this] {
@@ -46,6 +91,9 @@ bool DebugController :: launch(bool noDebug)
          return;
 
       _running = true;
+
+      onLaunch();
+
       while (_running) {
          _debugActive.wait();
 
