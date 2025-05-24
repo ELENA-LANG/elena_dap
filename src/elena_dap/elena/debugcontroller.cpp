@@ -17,13 +17,47 @@ using namespace elena_lang;
 
 // --- DebugInfoProvider ---
 
-void DebugInfoProvider :: provideFullPath(ustr_t sourcePath, std::string& output)
+bool DebugInfoProvider :: provideFullPath(ustr_t ns, ustr_t sourcePath, std::string& output)
 {
-   PathString fullPath(*_project->projectPath, sourcePath);
+   if (_project->isIncluded(ns)) {
+      PathString fullPath(*_project->projectPath, sourcePath);
 
-   IdentifierString fullPathStr(*fullPath);
+      IdentifierString fullPathStr(*fullPath);
 
-   output.assign(*fullPathStr);
+      output.assign(*fullPathStr);
+
+      return true;
+   }
+   else {
+      PathString fullPath;
+
+   //   for (auto ref_it = model.referencePaths.start(); !ref_it.eof(); ++ref_it) {
+   //      ustr_t extPackage = ref_it.key();
+   //      if (NamespaceString::isIncluded(extPackage, ns)) {
+   //         fullPath.copy(*model.projectPath);
+   //         PathUtil::combineCanonicalized(fullPath, *ref_it);
+   //         fullPath.combine(path);
+
+   //         return;
+   //      }
+   //   }
+
+      fullPath.copy(*_project->librarySourceRoot);
+      // HOTFIX : ignore sub ns
+      size_t index = ns.find('\'');
+      if (index != NOTFOUND_POS) {
+         fullPath.combine(ns, index);
+      }
+      else fullPath.combine(ns);
+      fullPath.combine(sourcePath);
+
+      IdentifierString fullPathStr(*fullPath);
+      output.assign(*fullPathStr);
+
+      return true;
+   }
+
+   return false;
 }
 
 void DebugInfoProvider::retrievePath(ustr_t name, PathString& path, path_t extension)
@@ -34,7 +68,7 @@ void DebugInfoProvider::retrievePath(ustr_t name, PathString& path, path_t exten
    if (isEqualOrSubSetNs(package, name)) {
       defineModulePath(name, path, *_project->projectPath, *_project->outputPath, extension);
    }
-   //else {
+   else {
    //   // check external libraries
    //   for (auto ref_it = _model->referencePaths.start(); !ref_it.eof(); ++ref_it) {
    //      ustr_t extPackage = ref_it.key();
@@ -49,12 +83,12 @@ void DebugInfoProvider::retrievePath(ustr_t name, PathString& path, path_t exten
    //      }
    //   }
 
-   //   // if file doesn't exist use package root
-   //   path.copy(*_model->paths.libraryRoot);
+      // if file doesn't exist use package root
+      path.copy(*_project->libraryRoot);
 
-   //   ReferenceName::nameToPath(path, name);
-   //   path.appendExtension(extension);
-   //}
+      ReferenceName::nameToPath(path, name);
+      path.appendExtension(extension);
+   }
 }
 
 // --- DebugController ---
@@ -186,12 +220,6 @@ void DebugController :: pause()
    _onEvent(EventType::Paused, info);
 }
 
-int64_t DebugController :: currentLine()
-{
-   std::unique_lock<std::mutex> lock(_mutex);
-   return _line;
-}
-
 void DebugController :: onStep()
 {
    std::unique_lock<std::mutex> lock(_mutex);
@@ -203,8 +231,7 @@ void DebugController :: onStep()
       threadid_t threadId = _process->getCurrentThreadId();
 
       DebugLineInfo* lineInfo = _provider.seekDebugLineInfo((addr_t)_process->getState(), moduleName, sourcePath);
-      if (lineInfo) {
-         _provider.provideFullPath(sourcePath, _threads[threadId].path);
+      if (lineInfo && _provider.provideFullPath(*moduleName, sourcePath, _threads[threadId].path)) {
          _threads[threadId].moduleName.assign(moduleName.str());
          _threads[threadId].row = lineInfo->row;
 

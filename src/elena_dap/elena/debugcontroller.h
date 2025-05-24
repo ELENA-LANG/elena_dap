@@ -22,19 +22,6 @@
 
 namespace elena_lang
 {
-   // !! temporal
-   // Total number of newlines in source.
-   constexpr int64_t numSourceLines = 7;
-
-   // sourceContent holds the synthetic file source.
-   constexpr char sourceContent[] = R"(// Hello Debugger!
-
-This is a synthetic source file provided by the DAP debugger.
-
-You can set breakpoints, and single line step.
-
-You may also notice that the locals contains a single variable for the currently executing line number.)";
-
    class DebugInfoProvider : public DebugInfoProviderBase
    {
    private:
@@ -43,7 +30,7 @@ You may also notice that the locals contains a single variable for the currently
       void retrievePath(ustr_t name, PathString& path, path_t extension) override;
 
    public:
-      void provideFullPath(ustr_t sourcePath, std::string& fullPath);
+      bool provideFullPath(ustr_t ns, ustr_t sourcePath, std::string& fullPath);
 
       DebugInfoProvider(ProjectModel* project)
          : _project(project)
@@ -147,11 +134,11 @@ You may also notice that the locals contains a single variable for the currently
       std::map<threadid_t, ThreadInfo> _threads;
 
       // !! temporal
-      int64_t           _line = 1;
       std::unordered_set<int64_t>      _breakpoints;
 
       void onLaunch();
       void onStopped();
+      void onStep();
 
       void runDebugEvent();
 
@@ -169,11 +156,6 @@ You may also notice that the locals contains a single variable for the currently
       void pause();
 
       void stepInto();
-
-      // currentLine() returns the currently executing line number.
-      int64_t currentLine();
-
-      void onStep();
 
       // clearBreakpoints() clears all set breakpoints.
       void clearBreakpoints();

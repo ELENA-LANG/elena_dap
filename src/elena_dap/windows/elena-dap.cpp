@@ -247,7 +247,7 @@ int main(int argn, char* argv[])
 
          dap::Variable currentLineVar;
          currentLineVar.name = "currentLine";
-         currentLineVar.value = std::to_string(debugger.currentLine());
+         currentLineVar.value = std::to_string(1);
          currentLineVar.type = "int";
 
          dap::VariablesResponse response;
@@ -308,7 +308,7 @@ int main(int argn, char* argv[])
          response.breakpoints.resize(breakpoints.size());
          for (size_t i = 0; i < breakpoints.size(); i++) {
             debugger.addBreakpoint(breakpoints[i].line);
-            response.breakpoints[i].verified = breakpoints[i].line < numSourceLines;
+            //response.breakpoints[i].verified = breakpoints[i].line < numSourceLines;
          }
       }
       else {
@@ -337,7 +337,7 @@ int main(int argn, char* argv[])
          }
 
          dap::SourceResponse response;
-         response.content = sourceContent;
+         //response.content = sourceContent;
          return response;
       });
 

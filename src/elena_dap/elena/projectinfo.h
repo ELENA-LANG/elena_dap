@@ -10,16 +10,24 @@
 #define PROJECT_INFO
 
 #include "common\common.h"
+#include "engine\elenacommon.h"
 
 namespace elena_lang
 {
    class ProjectModel
    {
    public:
+      PathString           libraryRoot;
+      PathString           librarySourceRoot;
       PathString           projectPath;
       PathString           outputPath;
       PathString           debuggee;
       PathString           arguments;
+
+      bool isIncluded(ustr_t ns)
+      {
+         return NamespaceString::isIncluded(getPackage(), ns);
+      }
 
       ustr_t getPackage()
       {
@@ -33,6 +41,9 @@ namespace elena_lang
 
          projectPath.copySubPath(*debuggee, false);
          outputPath.copySubPath(*debuggee, false);
+
+         libraryRoot.copy("C:\\Alex\\elena-lang\\lib60");
+         librarySourceRoot.copy("C:\\Alex\\elena-lang\\src60");
       }
    };
 }
