@@ -21,7 +21,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#define HANG_ON_START
+//#define HANG_ON_START
 
 #ifdef _MSC_VER
 
