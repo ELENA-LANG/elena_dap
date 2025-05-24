@@ -53,3 +53,8 @@ void Win32DebugAdapter::setBreakpoint(addr_t address, bool withStackLevelControl
 {
    _process.setBreakpoint(address, withStackLevelControl);
 }
+
+void Win32DebugAdapter :: setStepMode()
+{
+   _process.setStepMode();
+}

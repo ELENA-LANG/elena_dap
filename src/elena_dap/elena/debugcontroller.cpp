@@ -10,20 +10,30 @@
 #include <string>
 
 #include "elena/debugcontroller.h"
+#include "engine/elenacommon.h"
 #include "ldebugger/debuginfoprovider.h"
 
 using namespace elena_lang;
 
 // --- DebugInfoProvider ---
 
+void DebugInfoProvider :: provideFullPath(ustr_t sourcePath, std::string& output)
+{
+   PathString fullPath(*_project->projectPath, sourcePath);
+
+   IdentifierString fullPathStr(*fullPath);
+
+   output.assign(*fullPathStr);
+}
+
 void DebugInfoProvider::retrievePath(ustr_t name, PathString& path, path_t extension)
 {
-   //ustr_t package = _model->getPackage();
+   ustr_t package = _project->getPackage();
 
-   //// if it is the project package
-   //if (isEqualOrSubSetNs(package, name)) {
-   //   defineModulePath(name, path, *_model->projectPath, _model->getOutputPath(), extension);
-   //}
+   // if it is the project package
+   if (isEqualOrSubSetNs(package, name)) {
+      defineModulePath(name, path, *_project->projectPath, *_project->outputPath, extension);
+   }
    //else {
    //   // check external libraries
    //   for (auto ref_it = _model->referencePaths.start(); !ref_it.eof(); ++ref_it) {
@@ -49,15 +59,9 @@ void DebugInfoProvider::retrievePath(ustr_t name, PathString& path, path_t exten
 
 // --- DebugController ---
 
-void DebugController :: loadDebugInfo()
+void DebugController :: loadDebugInfo(path_t debuggee)
 {
-   DebugInfoProviderBase::loadDebugInfo(*_debuggee, &_provider, _process);
-}
-
-void DebugController :: defineTargetFile(std::string source)
-{
-   _debuggee.copy(source.c_str());
-   _debuggee.changeExtension("exe");
+   DebugInfoProviderBase::loadDebugInfo(debuggee, &_provider, _process);
 }
 
 void DebugController :: runDebugEvent()
@@ -65,12 +69,14 @@ void DebugController :: runDebugEvent()
    switch (_process->proceed(100)) {
       case DAPDebugProcessBase::ProceedMode::Trapped:
          _debugActive.reset();
-
-         //processStep();
+         onStep();
          break;
       case DAPDebugProcessBase::ProceedMode::NewThread:
          newThread();
          _process->run();
+         break;
+      case DAPDebugProcessBase::ProceedMode::Stopped:
+         onStopped();
          break;
       default:
          _process->run();
@@ -80,26 +86,31 @@ void DebugController :: runDebugEvent()
 
 void DebugController :: onLaunch()
 {
+   _loaded = true;
+
    addr_t entryAddr = _provider.getEntryPoint();
    _process->setBreakpoint(entryAddr, false);
+}
+
+void DebugController :: onStopped()
+{
+   _running = false;
+   _loaded = false;
 }
 
 bool DebugController :: launch(bool noDebug)
 {
    _debugThread = std::thread([this] {
-      if (!_process->startProcess(*_debuggee, *_arguments))
+      if (!_process->startProcess(*_project->debuggee, *_project->arguments))
          return;
 
       _running = true;
-
-      onLaunch();
-
       while (_running) {
          _debugActive.wait();
 
          runDebugEvent();
       }
-      });
+   });
 
    return true;
 }
@@ -122,26 +133,103 @@ void DebugController :: run()
 
 void DebugController :: newThread()
 {
-   _onEvent(EventType::NewThread);
+   if (!_loaded) {
+      onLaunch();
+   }
+
+   std::unique_lock<std::mutex> lock(_mutex);
+
+   EventInfo info = { _process->getCurrentThreadId() };
+
+   _threads[info.threadId] = {};
+
+   lock.unlock();
+
+   _onEvent(EventType::NewThread, info);
+}
+
+void DebugController :: stepInto()
+{
+   //if (!_started) {
+   //   if (_provider.getDebugInfoPtr() == 0 && _provider.getEntryPoint() != 0) {
+   //      _process->setBreakpoint(_provider.getEntryPoint(), false);
+   //      _postponed.setStepMode();
+   //   }
+   //   _started = true;
+   //}
+   //else {
+   //   DebugLineInfo* lineInfo = _provider.seekDebugLineInfo((addr_t)_process->getState());
+
+   //   //// if debugger should notify on the step result
+   //   //if (test(lineInfo->symbol, dsProcedureStep))
+   //   //   _debugger.setCheckMode();
+
+   //   DebugLineInfo* nextStep = _provider.getNextStep(lineInfo, false);
+   //   // if the address is the same perform the virtual step
+   //   if (nextStep && nextStep->addresses.step.address == lineInfo->addresses.step.address) {
+   //      _process->setStepMode();
+   //   }
+   //   /*else if (test(lineInfo->symbol, dsAtomicStep)) {
+   //      _debugger.setBreakpoint(nextStep->addresses.step.address, true);
+   //   }*/
+   //   // else set step mode
+      /*else */_process->setStepMode();
+   //}
+
+   _debugActive.fire();
 }
 
 void DebugController :: pause() 
 {
-   _onEvent(EventType::Paused);
+   EventInfo info = {};
+
+   _onEvent(EventType::Paused, info);
 }
 
-int64_t DebugController::currentLine()
+int64_t DebugController :: currentLine()
 {
    std::unique_lock<std::mutex> lock(_mutex);
    return _line;
 }
 
-void DebugController::stepForward() 
+void DebugController :: onStep()
 {
    std::unique_lock<std::mutex> lock(_mutex);
-   _line = (_line % numSourceLines) + 1;
+
+   if (_process->isTrapped()) {
+      IdentifierString moduleName;
+      ustr_t sourcePath = nullptr;
+
+      threadid_t threadId = _process->getCurrentThreadId();
+
+      DebugLineInfo* lineInfo = _provider.seekDebugLineInfo((addr_t)_process->getState(), moduleName, sourcePath);
+      if (lineInfo) {
+         _provider.provideFullPath(sourcePath, _threads[threadId].path);
+         _threads[threadId].moduleName.assign(moduleName.str());
+         _threads[threadId].row = lineInfo->row;
+
+         EventInfo info = { threadId };
+         _onEvent(EventType::Stepped, info);
+      }
+      else {
+         // if the module was not found - continue running
+
+         _process->setStepMode();
+         _debugActive.fire();
+      }
+
+      //if (_postponed.autoNextLine) {
+      //   if (lineInfo->row == _postponed.row) {
+      //      autoStepOver();
+
+      //      return;
+      //   }
+
+      //   _postponed.autoNextLine = false;
+      //}
+   }
+
    lock.unlock();
-   _onEvent(EventType::Stepped);
 }
 
 void DebugController::clearBreakpoints() 

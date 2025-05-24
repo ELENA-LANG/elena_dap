@@ -21,7 +21,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//#define HANG_ON_START
+#define HANG_ON_START
 
 #ifdef _MSC_VER
 
@@ -50,11 +50,14 @@ int main(int argn, char* argv[])
    if (argn < 2)
       return -1;
 
+   ProjectModel project;
+
    std::string source;
    //source.assign(argv[1]);
-
    // !! temporal
    source.assign("C:\\Alex\\elena-lang\\tests60\\sandbox\\sandbox.l");
+
+   project.assignSingleFileProject(source);
 
    // ==== Debug code ===
 #ifdef HANG_ON_START
@@ -77,7 +80,6 @@ int main(int argn, char* argv[])
 #endif
 
    // !! testing constants
-   const dap::integer threadId = 100;
    const dap::integer frameId = 200;
    const dap::integer variablesReferenceId = 300;
    const dap::integer sourceReferenceId = 400;
@@ -91,13 +93,13 @@ int main(int argn, char* argv[])
    Event configured;
 
    // Event handlers from the Debugger.
-   auto onDebuggerEvent = [&](DebugController::EventType onEvent) {
+   auto onDebuggerEvent = [&](DebugController::EventType onEvent, DebugController::EventInfo info) {
       switch (onEvent) {
          case DebugController::EventType::NewThread: {
             // Broadcast the existance of the single thread to the client.
             dap::ThreadEvent threadStartedEvent;
             threadStartedEvent.reason = "started";
-            threadStartedEvent.threadId = threadId;
+            threadStartedEvent.threadId = info.threadId;
             session->send(threadStartedEvent);
 
             break;
@@ -106,7 +108,7 @@ int main(int argn, char* argv[])
             // The debugger has single-line stepped. Inform the client.
             dap::StoppedEvent event;
             event.reason = "step";
-            event.threadId = threadId;
+            event.threadId = info.threadId;
             session->send(event);
             break;
          }
@@ -114,7 +116,7 @@ int main(int argn, char* argv[])
             // The debugger has hit a breakpoint. Inform the client.
             dap::StoppedEvent event;
             event.reason = "breakpoint";
-            event.threadId = threadId;
+            event.threadId = info.threadId;
             session->send(event);
             break;
          }
@@ -122,16 +124,16 @@ int main(int argn, char* argv[])
             // The debugger has been suspended. Inform the client.
             dap::StoppedEvent event;
             event.reason = "pause";
-            event.threadId = threadId;
+            event.threadId = info.threadId;
             session->send(event);
             break;
          }
       }};
 
    // Construct the debugger.
-   elena_lang::DebugController debugger(new elena_lang::Win32DebugAdapter(), source, onDebuggerEvent);
+   elena_lang::DebugController debugger(new elena_lang::Win32DebugAdapter(), &project, onDebuggerEvent);
    //Debugger debugger(onDebuggerEvent);
-   debugger.loadDebugInfo();
+   debugger.loadDebugInfo(*project.debuggee);
 
    // Handle errors reported by the Session. These errors include protocol
    // parsing errors and receiving messages with no handler.
@@ -167,10 +169,16 @@ int main(int argn, char* argv[])
    // https://microsoft.github.io/debug-adapter-protocol/specification#Requests_Threads
    session->registerHandler([&](const dap::ThreadsRequest&) {
       dap::ThreadsResponse response;
-      dap::Thread thread;
-      thread.id = threadId;
-      thread.name = "TheThread";
-      response.threads.push_back(thread);
+
+      std::list<threadid_t> threads;
+      debugger.loadThreadList(threads);
+      for (auto it = threads.begin(); it != threads.end(); ++it) {
+         dap::Thread thread;
+
+         thread.id = *it;
+         response.threads.push_back(thread);
+      }
+
       return response;
       });
 
@@ -181,18 +189,23 @@ int main(int argn, char* argv[])
    session->registerHandler(
       [&](const dap::StackTraceRequest& request)
       -> dap::ResponseOrError<dap::StackTraceResponse> {
-         if (request.threadId != threadId) {
-            return dap::Error("Unknown threadId '%d'", int(request.threadId));
-         }
+         //if (request.threadId != threadId) {
+         //   return dap::Error("Unknown threadId '%d'", int(request.threadId));
+         //}
+
+         std::string path;
+         std::string name;
+         int row;
+         debugger.loadSourcePath(request.threadId, path, name, row);
 
          dap::Source source;
-         source.sourceReference = sourceReferenceId;
-         source.name = "HelloDebuggerSource";
+         source.path = path;
+         source.name = name;
 
          dap::StackFrame frame;
-         frame.line = debugger.currentLine();
+         frame.line = row;
          frame.column = 1;
-         frame.name = "HelloDebugger";
+         frame.name = name;
          frame.id = frameId;
          frame.source = source;
 
@@ -262,7 +275,7 @@ int main(int argn, char* argv[])
    // thread.
    // https://microsoft.github.io/debug-adapter-protocol/specification#Requests_Next
    session->registerHandler([&](const dap::NextRequest&) {
-      debugger.stepForward();
+      debugger.stepInto();
       return dap::NextResponse();
       });
 
@@ -270,7 +283,7 @@ int main(int argn, char* argv[])
    // https://microsoft.github.io/debug-adapter-protocol/specification#Requests_StepIn
    session->registerHandler([&](const dap::StepInRequest&) {
       // Step-in treated as step-over as there's only one stack frame.
-      debugger.stepForward();
+      debugger.stepInto();
       return dap::StepInResponse();
       });
 

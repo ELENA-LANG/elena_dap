@@ -13,10 +13,12 @@
 #include <mutex>
 #include <functional>
 #include <unordered_set>
+#include <map>
 
 #include "common\common.h"
 #include "ldebugger\ldbg_common.h"
 #include "ldebugger\debuginfoprovider.h"
+#include "projectinfo.h"
 
 namespace elena_lang
 {
@@ -36,7 +38,18 @@ You may also notice that the locals contains a single variable for the currently
    class DebugInfoProvider : public DebugInfoProviderBase
    {
    private:
+      ProjectModel* _project;
+
       void retrievePath(ustr_t name, PathString& path, path_t extension) override;
+
+   public:
+      void provideFullPath(ustr_t sourcePath, std::string& fullPath);
+
+      DebugInfoProvider(ProjectModel* project)
+         : _project(project)
+      {
+
+      }
    };
 
    class DAPDebugProcessBase : public DebugProcessBase
@@ -46,10 +59,19 @@ You may also notice that the locals contains a single variable for the currently
       {
          Running,
          Trapped,
-         NewThread
+         NewThread,
+         Stopped
       };
 
+      virtual bool isTrapped() = 0;
+
+      virtual threadid_t getCurrentThreadId() = 0;
+
+      virtual void* getState() = 0;
+
       virtual bool startProcess(path_t debugee, path_t arguments) = 0;
+
+      virtual void setStepMode() = 0;
 
       virtual void run() = 0;
 
@@ -91,38 +113,52 @@ You may also notice that the locals contains a single variable for the currently
    public:
       enum class EventType { NewThread, BreakpointHit, Stepped, Paused };
 
-      using EventHandler = std::function<void(EventType)>;
+      struct EventInfo
+      {
+         threadid_t threadId;
+      };
+
+      using EventHandler = std::function<void(EventType, EventInfo)>;
+
+      struct ThreadInfo
+      {
+         std::string path;
+         std::string moduleName;
+
+         int row;
+      };
 
    private:
-      PathString           _debuggee;
-      PathString           _arguments;
+      ProjectModel*                    _project;
 
-      DAPDebugProcessBase* _process;
+      DAPDebugProcessBase*             _process;
 
-      DebugInfoProvider    _provider;
+      DebugInfoProvider                _provider;
 
-      EventHandler         _onEvent;
+      EventHandler                     _onEvent;
 
-      Event                _debugActive;
-      std::thread          _debugThread;
-      std::mutex           _mutex;
+      Event                            _debugActive;
+      std::thread                      _debugThread;
+      std::mutex                       _mutex;
 
-      bool                 _running = false;
+      bool                             _running = false;
+      bool                             _loaded = false;
+
+      std::map<threadid_t, ThreadInfo> _threads;
 
       // !! temporal
       int64_t           _line = 1;
-      std::unordered_set<int64_t> _breakpoints;
+      std::unordered_set<int64_t>      _breakpoints;
 
       void onLaunch();
-
-      void defineTargetFile(std::string source);
+      void onStopped();
 
       void runDebugEvent();
 
       void newThread();
 
    public:
-      void loadDebugInfo();
+      void loadDebugInfo(path_t debuggee);
 
       bool launch(bool noDebug);
 
@@ -132,11 +168,12 @@ You may also notice that the locals contains a single variable for the currently
       // pause() instructs the debugger to pause execution.
       void pause();
 
+      void stepInto();
+
       // currentLine() returns the currently executing line number.
       int64_t currentLine();
 
-      // stepForward() instructs the debugger to step forward one line.
-      void stepForward();
+      void onStep();
 
       // clearBreakpoints() clears all set breakpoints.
       void clearBreakpoints();
@@ -144,10 +181,25 @@ You may also notice that the locals contains a single variable for the currently
       // addBreakpoint() sets a new breakpoint on the given line.
       void addBreakpoint(int64_t line);
 
-      DebugController(DAPDebugProcessBase* process, std::string source, const EventHandler& onEvent)
-         : _process(process), _onEvent(onEvent)
+      void loadThreadList(std::list<threadid_t>& threads)
       {
-         defineTargetFile(source);
+         for (const auto& pair : _threads) {
+            threads.push_back(pair.first);
+         }
+      }
+
+      bool loadSourcePath(threadid_t threadId, std::string& path, std::string& name, int& row)
+      {
+         path.assign(_threads[threadId].path);
+         name.assign(_threads[threadId].moduleName);
+         row = _threads[threadId].row;
+
+         return true;
+      }
+
+      DebugController(DAPDebugProcessBase* process, ProjectModel* project, const EventHandler& onEvent)
+         : _process(process), _onEvent(onEvent), _project(project), _provider(project)
+      {         
       }
       virtual ~DebugController() = default;
    };

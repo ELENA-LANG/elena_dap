@@ -30,3 +30,6 @@
 *.exe
 *.out
 *.app
+
+/src/.vs/*
+/src/elena_dap/vs/*

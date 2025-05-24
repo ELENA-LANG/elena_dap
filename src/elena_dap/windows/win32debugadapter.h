@@ -25,6 +25,21 @@ namespace elena_lang
       void addStep(addr_t address, void* current) override;
 
    public:
+      bool isTrapped() override
+      {
+         return _process.isTrapped();
+      }
+
+      threadid_t getCurrentThreadId()
+      {
+         return _process.getThreadId();
+      }
+
+      void* getState() override
+      {
+         return _process.getState();
+      }
+
       bool startProcess(path_t debugee, path_t arguments) override;
 
       ProceedMode proceed(int timeout) override;
@@ -32,6 +47,8 @@ namespace elena_lang
       void run() override;
 
       void setBreakpoint(addr_t address, bool withStackLevelControl) override;
+
+      void setStepMode() override;
 
       Win32DebugAdapter();
       virtual ~Win32DebugAdapter() = default;
